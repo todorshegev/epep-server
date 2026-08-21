@@ -81,7 +81,6 @@ async function searchCase({ caseNum, year, court = '' }) {
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
         '--disable-gpu',
-        '--single-process',
       ],
     });
     const page = await browser.newPage();
@@ -153,18 +152,41 @@ async function searchCase({ caseNum, year, court = '' }) {
       }
     }
 
-    await page.evaluate(() => {
+    const clicked = await page.evaluate(() => {
       const btn = document.querySelector('button.oc-submit');
-      if (btn) btn.click();
+      if (!btn) return false;
+      btn.click();
+      return true;
     });
+    if (!clicked) throw new Error('Бутонът за търсене не беше намерен — сайтът вероятно е променен');
     console.log('[EPEP] Търсене...');
-    await WAIT(4500);
 
-    const caseLinks = await page.evaluate(() =>
-      Array.from(document.querySelectorAll('a[href*="CaseDetail"]'))
-        .map(a => ({ text: a.innerText ? a.innerText.trim() : '', href: a.href }))
-    );
-    console.log('[EPEP] Намерени', caseLinks.length, 'дела.');
+    // Чакаме реалните резултати, а не фиксиран брой секунди.
+    // Досега тук стоеше WAIT(4500): при по-бавен отговор страницата още беше
+    // празна и се връщаше празен списък с success:true — изглеждаше като
+    // „няма такова дело", вместо да се види, че справката е пропаднала.
+    const RESULT_TIMEOUT = 30000;
+    const startedAt = Date.now();
+    let caseLinks = [];
+    let noResults = false;
+
+    while (Date.now() - startedAt < RESULT_TIMEOUT) {
+      await WAIT(700);
+      const probe = await page.evaluate(() => ({
+        links: Array.from(document.querySelectorAll('a[href*="CaseDetail"]'))
+          .map(a => ({ text: a.innerText ? a.innerText.trim() : '', href: a.href })),
+        text: (document.body.innerText || '').toLowerCase(),
+      }));
+      if (probe.links.length > 0) { caseLinks = probe.links; break; }
+      if (probe.text.includes('няма намерени') || probe.text.includes('не бяха намерени')
+          || probe.text.includes('няма резултати')) { noResults = true; break; }
+    }
+
+    console.log('[EPEP] Намерени', caseLinks.length, 'дела за', Date.now() - startedAt, 'ms.');
+
+    if (caseLinks.length === 0 && !noResults) {
+      throw new Error('Резултатите не се заредиха за 30s — ecase.justice.bg не отговори навреме');
+    }
 
     let caseDetails = null;
 
