@@ -5,7 +5,7 @@ const { searchCase, getCaseDetail } = require('./scraper');
  * Справките към ecase.justice.bg се провалят от време на време заради бавен отговор.
  * Опитваме повторно, вместо да върнем грешка при първото забавяне.
  */
-async function withRetry(label, fn, attempts = 3) {
+async function withRetry(label, fn, attempts = 2) {
   let lastErr;
   for (let i = 1; i <= attempts; i++) {
     try {
@@ -16,7 +16,7 @@ async function withRetry(label, fn, attempts = 3) {
     } catch (err) {
       lastErr = err;
       console.warn(`[RETRY] ${label}: опит ${i}/${attempts} се провали — ${err.message}`);
-      if (i < attempts) await new Promise(r => setTimeout(r, 1500 * i));
+      if (i < attempts) await new Promise(r => setTimeout(r, 1000));
     }
   }
   throw lastErr;

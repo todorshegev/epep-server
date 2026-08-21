@@ -165,7 +165,7 @@ async function searchCase({ caseNum, year, court = '' }) {
     // Досега тук стоеше WAIT(4500): при по-бавен отговор страницата още беше
     // празна и се връщаше празен списък с success:true — изглеждаше като
     // „няма такова дело", вместо да се види, че справката е пропаднала.
-    const RESULT_TIMEOUT = 30000;
+    const RESULT_TIMEOUT = 20000;
     const startedAt = Date.now();
     let caseLinks = [];
     let noResults = false;
@@ -185,7 +185,7 @@ async function searchCase({ caseNum, year, court = '' }) {
     console.log('[EPEP] Намерени', caseLinks.length, 'дела за', Date.now() - startedAt, 'ms.');
 
     if (caseLinks.length === 0 && !noResults) {
-      throw new Error('Резултатите не се заредиха за 30s — ecase.justice.bg не отговори навреме');
+      throw new Error('Резултатите не се заредиха за 20s — ecase.justice.bg не отговори навреме');
     }
 
     let caseDetails = null;
