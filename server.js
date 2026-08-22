@@ -81,18 +81,19 @@ app.get('/api/case/detail', async (req, res) => {
 // Шифроването на уеб известия иска Node — в средата на Supabase
 // библиотеката произвежда съдържание, което телефонът не може да разчете.
 const webpush = require('web-push');
-let pushReady = false;
-if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
-  webpush.setVapidDetails(
-    process.env.VAPID_SUBJECT || 'mailto:office@htia-lawco.com',
-    process.env.VAPID_PUBLIC_KEY,
-    process.env.VAPID_PRIVATE_KEY,
-  );
-  pushReady = true;
+
+/** Ключовете се четат при всяко изпращане — така добавянето им в
+ *  средата не изисква рестарт и редът на действията няма значение. */
+function pushReady() {
+  const pub = process.env.VAPID_PUBLIC_KEY, priv = process.env.VAPID_PRIVATE_KEY;
+  if (!pub || !priv) return false;
+  webpush.setVapidDetails(process.env.VAPID_SUBJECT || 'mailto:office@htia-lawco.com', pub, priv);
+  return true;
 }
 
 app.post('/api/push', async (req, res) => {
-  if (!pushReady) return res.status(503).json({ success: false, error: 'Липсват ключове за известия' });
+  if (!pushReady()) return res.status(503).json({ success: false, error: 'Липсват ключове за известия',
+    vidyani: { pub: !!process.env.VAPID_PUBLIC_KEY, priv: !!process.env.VAPID_PRIVATE_KEY } });
   const { subscriptions, payload, secret } = req.body || {};
   if (process.env.PUSH_SECRET && secret !== process.env.PUSH_SECRET) {
     return res.status(401).json({ success: false, error: 'Няма достъп' });
