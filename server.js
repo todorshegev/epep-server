@@ -77,6 +77,45 @@ app.get('/api/case/detail', async (req, res) => {
   }
 });
 
+// ── Изпращане на известия ─────────────────────────────────────────────
+// Шифроването на уеб известия иска Node — в средата на Supabase
+// библиотеката произвежда съдържание, което телефонът не може да разчете.
+const webpush = require('web-push');
+let pushReady = false;
+if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+  webpush.setVapidDetails(
+    process.env.VAPID_SUBJECT || 'mailto:office@htia-lawco.com',
+    process.env.VAPID_PUBLIC_KEY,
+    process.env.VAPID_PRIVATE_KEY,
+  );
+  pushReady = true;
+}
+
+app.post('/api/push', async (req, res) => {
+  if (!pushReady) return res.status(503).json({ success: false, error: 'Липсват ключове за известия' });
+  const { subscriptions, payload, secret } = req.body || {};
+  if (process.env.PUSH_SECRET && secret !== process.env.PUSH_SECRET) {
+    return res.status(401).json({ success: false, error: 'Няма достъп' });
+  }
+  if (!Array.isArray(subscriptions) || !payload) {
+    return res.status(400).json({ success: false, error: 'Липсват subscriptions или payload' });
+  }
+
+  const body = typeof payload === 'string' ? payload : JSON.stringify(payload);
+  let ok = 0, gone = [], failed = 0;
+  for (const s of subscriptions) {
+    try {
+      await webpush.sendNotification(
+        { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, body);
+      ok++;
+    } catch (e) {
+      if (e && (e.statusCode === 404 || e.statusCode === 410)) gone.push(s.endpoint);
+      else failed++;
+    }
+  }
+  res.json({ success: true, ok, gone, failed });
+});
+
 app.listen(PORT, () => {
   console.log(`EPEP API сървър стартиран на порт ${PORT}`);
 });
